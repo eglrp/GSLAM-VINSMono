@@ -1,3 +1,4 @@
+#include <iostream>
 #include "parameters.h"
 
 std::string CALIB_DIR;
@@ -12,6 +13,9 @@ bool STEREO_TRACK;
 bool USE_F;
 bool USE_E;
 bool EQUALIZE;
+int ROW = 480;
+int COL = 752;
+double FOCAL_LENGTH = 460.0;
 
 int MAX_FEATURE_CNT;
 int NUM_OF_ITER;
@@ -42,6 +46,7 @@ double BIAS_GYR_THRESHOLD;
 double SOLVER_TIME;
 bool COMPENSATE_ROTATION;
 
+#ifdef HAS_ROS
 template <typename T>
 T readParam(ros::NodeHandle &n, std::string name)
 {
@@ -127,7 +132,7 @@ void readParameters(ros::NodeHandle &n)
         }
     }
 }
-
+#endif
 void readParameters()
 {
     CALIB_DIR = "/data/zhaoyong/Program/Thirdparty/VI-MEAN/feature_tracker/config/";

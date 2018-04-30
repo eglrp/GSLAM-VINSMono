@@ -1,4 +1,6 @@
+
 #include "visualization.h"
+#ifdef HAS_ROS
 
 using namespace ros;
 using namespace Eigen;
@@ -352,3 +354,102 @@ void pubTF(const SelfCalibrationEstimator &estimator, const std_msgs::Header &he
     transform.setRotation(q);
     br.sendTransform(tf::StampedTransform(transform, header.stamp, "body", "camera"));
 }
+#else
+
+#include <GSLAM/core/HashMap.h>
+#include <GSLAM/core/Event.h>
+
+GSLAM::GObjectHandle* handle=NULL;
+
+void registerHandle(GSLAM::GObjectHandle* h)
+{
+    handle=h;
+}
+
+class FrameVINS: public GSLAM::MapFrame
+{
+public:
+    FrameVINS(const Eigen::Vector3d &P, const Eigen::Quaterniond &Q):MapFrame(0,0){
+        setPose(GSLAM::SE3(GSLAM::SO3(Q.x(),Q.y(),Q.z(),Q.w()),
+                           GSLAM::Point3d(P.x(),P.y(),P.z())));
+    }
+
+    virtual GSLAM::Camera  getCamera(int idx=0){return GSLAM::Camera({640,480});}
+
+};
+
+void pubLatestOdometry(const Eigen::Vector3d &P, const Eigen::Quaterniond &Q, const Eigen::Vector3d &V, const std_msgs::Header &header)
+{
+    Eigen::Matrix3d R;
+    R << 0, -1, 0,
+        0, 0, -1,
+        1, 0, 0;
+
+    Eigen::Quaterniond q = Q * Eigen::Quaterniond{R};
+    if(handle)
+        handle->handle(new GSLAM::CurrentFrameEvent(GSLAM::FramePtr(new FrameVINS(P,q))));
+}
+
+void printStatistics(const SelfCalibrationEstimator &estimator, double t)
+{
+
+}
+
+void pubOdometry(const SelfCalibrationEstimator &estimator, const std_msgs::Header &header)
+{
+
+}
+
+void pubInitialGuess(const SelfCalibrationEstimator &estimator, const std_msgs::Header &header)
+{
+
+}
+
+void pubKeyPoses(const SelfCalibrationEstimator &estimator, const std_msgs::Header &header)
+{
+
+}
+
+void pubCameraPose(const SelfCalibrationEstimator &estimator, const std_msgs::Header &header)
+{
+    if (estimator.solver_flag == SelfCalibrationEstimator::SolverFlag::NON_LINEAR)
+    {
+        int i = WINDOW_SIZE - 1;
+        Vector3d P = estimator.Ps[i] + estimator.Rs[i] * estimator.tic[0];
+        Quaterniond R = Quaterniond(estimator.Rs[i] * estimator.ric[0]);
+        if(handle)
+        handle->handle(new GSLAM::CurrentFrameEvent(GSLAM::FramePtr(new FrameVINS(P,R))));
+    }
+}
+
+void pubPointCloud(const SelfCalibrationEstimator &estimator, const std_msgs::Header &header)
+{
+    GSLAM::MapPtr _map=GSLAM::MapPtr(new GSLAM::HashMap());
+    int i=0;
+    for (auto &it : estimator.point_cloud)
+    {
+        _map->insertMapPoint(GSLAM::PointPtr(new GSLAM::MapPoint(i++,GSLAM::Point3d(it(0),it(1),it(2)))));
+    }
+    for (auto &it : estimator.margin_map)
+    {
+        _map->insertMapPoint(GSLAM::PointPtr(new GSLAM::MapPoint(i++,GSLAM::Point3d(it(0),it(1),it(2)))));
+    }
+    if(handle)
+    handle->handle(_map);
+}
+
+void pubCalibration(const SelfCalibrationEstimator &estimator, const std_msgs::Header &header)
+{
+
+}
+
+void pubTF(const SelfCalibrationEstimator &estimator, const std_msgs::Header &header)
+{
+
+}
+
+int main(int argc,char** argv){
+
+}
+
+#endif

@@ -1,15 +1,17 @@
 #include "feature_tracker.h"
 
-#include <ros/ros.h>
-#include <sensor_msgs/Image.h>
-#include <sensor_msgs/image_encodings.h>
-#include <sensor_msgs/PointCloud.h>
-#include <sensor_msgs/Imu.h>
-//#include <cv_bridge/cv_bridge.h>
+#include "ros/ros.h"
+#include "sensor_msgs/Image.h"
+#include "sensor_msgs/image_encodings.h"
+#include "sensor_msgs/PointCloud.h"
+#include "sensor_msgs/Imu.h"
 
+//#include <cv_bridge/cv_bridge.h>
+#ifdef HAS_ROS
 #include <message_filters/subscriber.h>
 #include <message_filters/synchronizer.h>
 #include <message_filters/sync_policies/exact_time.h>
+#endif
 
 #include <mutex>
 #include <condition_variable>
@@ -31,8 +33,8 @@ sensor_msgs::PointCloudPtr trackImage(sensor_msgs::ImageConstPtr img_msg){
     ROS_INFO("processing vision data with stamp %f", img_msg->header.stamp.toSec());
 
     cv::Mat image=cv::Mat(img_msg->height,img_msg->width,CV_8UC1,(void*)img_msg->data.data()).clone();
-    cv::imshow("image",image);
-    cv::waitKey(10);
+//    cv::imshow("image",image);
+//    cv::waitKey(10);
 //            cv_bridge::CvImageConstPtr ptr = cv_bridge::toCvCopy(, sensor_msgs::image_encodings::MONO8);
 
     TicToc t_r;

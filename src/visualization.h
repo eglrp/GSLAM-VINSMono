@@ -1,3 +1,9 @@
+
+#include <eigen3/Eigen/Dense>
+
+#include "self_calibration_estimator.h"
+
+#ifdef HAS_ROS
 #pragma once
 
 #include <ros/ros.h>
@@ -13,9 +19,6 @@
 #include <visualization_msgs/Marker.h>
 #include <tf/transform_broadcaster.h>
 
-#include <eigen3/Eigen/Dense>
-
-#include "self_calibration_estimator.h"
 
 extern ros::Publisher pub_odometry, pub_odometry;
 extern ros::Publisher pub_path, pub_pose;
@@ -48,3 +51,25 @@ void pubPointCloud(const SelfCalibrationEstimator &estimator, const std_msgs::He
 void pubCalibration(const SelfCalibrationEstimator &estimator, const std_msgs::Header &header);
 
 void pubTF(const SelfCalibrationEstimator &estimator, const std_msgs::Header &header);
+#else
+#include <GSLAM/core/GSLAM.h>
+
+void registerHandle(GSLAM::GObjectHandle* handle);
+void pubLatestOdometry(const Eigen::Vector3d &P, const Eigen::Quaterniond &Q, const Eigen::Vector3d &V, const std_msgs::Header &header);
+
+void printStatistics(const SelfCalibrationEstimator &estimator, double t);
+
+void pubOdometry(const SelfCalibrationEstimator &estimator, const std_msgs::Header &header);
+
+void pubInitialGuess(const SelfCalibrationEstimator &estimator, const std_msgs::Header &header);
+
+void pubKeyPoses(const SelfCalibrationEstimator &estimator, const std_msgs::Header &header);
+
+void pubCameraPose(const SelfCalibrationEstimator &estimator, const std_msgs::Header &header);
+
+void pubPointCloud(const SelfCalibrationEstimator &estimator, const std_msgs::Header &header);
+
+void pubCalibration(const SelfCalibrationEstimator &estimator, const std_msgs::Header &header);
+
+void pubTF(const SelfCalibrationEstimator &estimator, const std_msgs::Header &header);
+#endif

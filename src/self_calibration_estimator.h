@@ -8,9 +8,13 @@
 #include "tic_toc.h"
 #include "imu_factor.h"
 
-#include <std_msgs/Header.h>
-#include <std_msgs/Float32.h>
-
+#ifdef HAS_ROS
+#include "std_msgs/Header.h"
+#include "std_msgs/Float32.h"
+#else
+#include "sensor_msgs/Header.h"
+#include "sensor_msgs/Float32.h"
+#endif
 #include <ceres/ceres.h>
 #include "pose_local_parameterization.h"
 #include "projection_factor.h"

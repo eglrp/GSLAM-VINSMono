@@ -5,16 +5,17 @@
 #include <mutex>
 #include <condition_variable>
 
-#include <ros/ros.h>
+
+#include "ros/ros.h"
 //#include <cv_bridge/cv_bridge.h>
-#include <diagnostic_msgs/KeyValue.h>
+//#include <diagnostic_msgs/KeyValue.h>
 #include <execinfo.h>
 #include <csignal>
 
 #include "self_calibration_estimator.h"
 #include "feature_tracker.h"
 #include "visualization.h"
-
+#include "sensor_msgs/Imu.h"
 #include <opencv2/opencv.hpp>
 #include <cstdio>
 #include <cstdlib>
@@ -274,46 +275,46 @@ void process()
     }
 }
 
-void debug_callback(const diagnostic_msgs::KeyValueConstPtr &key_value_msg)
-{
-    std::cout << key_value_msg->key << std::endl;
-    std::cout << key_value_msg->value << std::endl;
-    int pid = std::stoi(key_value_msg->value);
+//void debug_callback(const diagnostic_msgs::KeyValueConstPtr &key_value_msg)
+//{
+//    std::cout << key_value_msg->key << std::endl;
+//    std::cout << key_value_msg->value << std::endl;
+//    int pid = std::stoi(key_value_msg->value);
 
-    for (auto it_per_id : estimator.f_manager.traversal())
-        if (it_per_id->feature_id == pid)
-            printf("%d %f\n", pid, it_per_id->estimated_depth);
+//    for (auto it_per_id : estimator.f_manager.traversal())
+//        if (it_per_id->feature_id == pid)
+//            printf("%d %f\n", pid, it_per_id->estimated_depth);
 
-    for (auto i : estimator.outlier_info)
-    {
-        printf("%d : ", i.first);
-        int name_id = 1;
-        for (auto j : i.second)
-        {
-            cv::Mat img = image_pool[j].clone();
-            sensor_msgs::PointCloudConstPtr feature = cloud_pool[j];
-            int idx = -1;
-            float u, v;
-            for (int k = 0; k < static_cast<int>(feature->channels[0].values.size()); k++)
-            {
-                if (int(feature->channels[0].values[k] + 0.5) == i.first)
-                {
-                    idx = k;
-                    u = feature->channels[1].values[k];
-                    v = feature->channels[2].values[k];
-                    break;
-                }
-            }
-            ROS_ASSERT(idx != -1);
-            printf("(%f,%f) ", u, v);
-            cv::circle(img, cv::Point2f(u, v), 2, cv::Scalar(0), 2);
-            cv::imshow(std::to_string(name_id++), img);
-        }
-        puts("");
-    }
-}
+//    for (auto i : estimator.outlier_info)
+//    {
+//        printf("%d : ", i.first);
+//        int name_id = 1;
+//        for (auto j : i.second)
+//        {
+//            cv::Mat img = image_pool[j].clone();
+//            sensor_msgs::PointCloudConstPtr feature = cloud_pool[j];
+//            int idx = -1;
+//            float u, v;
+//            for (int k = 0; k < static_cast<int>(feature->channels[0].values.size()); k++)
+//            {
+//                if (int(feature->channels[0].values[k] + 0.5) == i.first)
+//                {
+//                    idx = k;
+//                    u = feature->channels[1].values[k];
+//                    v = feature->channels[2].values[k];
+//                    break;
+//                }
+//            }
+//            ROS_ASSERT(idx != -1);
+//            printf("(%f,%f) ", u, v);
+//            cv::circle(img, cv::Point2f(u, v), 2, cv::Scalar(0), 2);
+//            cv::imshow(std::to_string(name_id++), img);
+//        }
+//        puts("");
+//    }
+//}
 
-#if 1
+#if HAS_ROS
 int main(int argc, char **argv)
 {
     google::InitGoogleLogging(argv[0]);
@@ -334,7 +335,7 @@ int main(int argc, char **argv)
 
     ros::Subscriber sub_imu = n.subscribe("/imu_3dm_gx4/imu", 2000, imu_callback, ros::TransportHints().tcpNoDelay());
     ros::Subscriber sub_image = n.subscribe("image", 2000, image_callback);
-    ros::Subscriber sub_debug = n.subscribe("debug", 2000, debug_callback);
+//    ros::Subscriber sub_debug = n.subscribe("debug", 2000, debug_callback);
     ros::Subscriber sub_raw_image = n.subscribe("/mv_25001498/image_raw", 2000, raw_image_callback);
 
     std::thread loop{process};
@@ -350,24 +351,33 @@ int main(int argc, char **argv)
 class VINSMono: public GSLAM::SLAM
 {
 public:
-    VINSMono(){}
+    VINSMono():loop(process){
+        readParameters();
+    }
     virtual std::string type()const{return "VINSMono";}
     virtual bool valid()const{return true;}
     virtual bool isDrawable()const{return false;}
-    virtual bool track(FramePtr& frame)// imu or image handle thread
+    virtual bool track(GSLAM::FramePtr& frame)// imu or image handle thread
     {
-        if(frame->cameraNum()) return handleImageFrame(frame);
-        else return handleIMUFrame(frame);
+        if(frame->cameraNum())
+            return handleImageFrame(frame);
+        else
+            return handleIMUFrame(frame);
     }
 
-    virtual bool setCallback(GObjectHandle* cbk){
+    virtual bool setCallback(GSLAM::GObjectHandle* cbk){
         handle=cbk;
         return true;
     }
+    bool handleImageFrame(GSLAM::FramePtr& frame);
+    bool handleIMUFrame(GSLAM::FramePtr& frame);
+
+    bool firstImageFrame=true,firstIMUFrame=true;
+    GSLAM::GObjectHandle* handle=nullptr;
+    std::thread loop;
 };
 
 bool VINSMono::handleImageFrame(GSLAM::FramePtr& frame){
-    static double first_image_time;
     if(firstImageFrame){
         GSLAM::Camera camera=frame->getCamera();
         PinholeCameraPtr pinhole;
@@ -375,10 +385,12 @@ bool VINSMono::handleImageFrame(GSLAM::FramePtr& frame){
             std::vector<double> p=camera.getParameters();
             pinhole=PinholeCameraPtr(new PinholeCamera("",camera.width(),camera.height(),
                     p[6],p[7],p[8],p[9],p[2],p[3],p[4],p[5]));
+            FOCAL_LENGTH=p[6];
         }
         else if(camera.CameraType()=="PinHole")
         {
             std::vector<double> p=camera.getParameters();
+            FOCAL_LENGTH=p[6];
             pinhole=PinholeCameraPtr(new PinholeCamera("",camera.width(),camera.height(),
                     0,0,0,0,p[2],p[3],p[4],p[5]));
         }
@@ -387,9 +399,68 @@ bool VINSMono::handleImageFrame(GSLAM::FramePtr& frame){
             LOG(ERROR)<<"Do not support camera type "<<camera.CameraType();
             return false;
         }
+        COL=camera.width();ROW=camera.height();
+        for (int i = 0; i < NUM_OF_CAM; i++)
+            trackerData[i].m_camera=pinhole;
+        estimator.setIMUModel();
     }
+
+    cv::Mat image=frame->getImage();
+    if(image.type()==CV_8UC3){
+        cv::cvtColor(image,image,CV_BGR2GRAY);
+    }
+    else if(image.type()==CV_8UC4){
+        cv::cvtColor(image,image,CV_BGRA2GRAY);
+    }
+    else if(image.type()!=CV_8UC1){
+        return false;
+    }
+
+    uint32_t  sec = frame->timestamp();
+    uint32_t  nsec = (frame->timestamp()-sec)*1e9;
+    nsec = (nsec/1000)*1000+500;
+    sensor_msgs::ImagePtr img_msg(new sensor_msgs::Image);
+    img_msg->header.stamp=ros::Time(sec,nsec);
+    img_msg->height=image.rows;
+    img_msg->width=image.cols;
+    img_msg->data.resize(image.total());
+    memcpy(img_msg->data.data(),image.data,img_msg->data.size());
+    raw_image_callback(img_msg);
 
 
     return true;
 }
+
+bool VINSMono::handleIMUFrame(GSLAM::FramePtr& frame){
+    if(firstIMUFrame){
+        GSLAM::Point3d noise;
+        if(frame->getAccelerationNoise(noise)){
+            ACC_N=noise.x;ACC_W=noise.y;
+        }
+        if(frame->getAngularVNoise(noise)){
+            GYR_N=noise.x;GYR_N=noise.y;
+        }
+    }
+
+    GSLAM::Point3d acc,gyr;
+    if(!frame->getAcceleration(acc)) return false;
+    if(!frame->getAngularVelocity(gyr)) return false;
+
+    sensor_msgs::ImuPtr imudata(new sensor_msgs::Imu);
+    imudata->angular_velocity.x = gyr.x;
+    imudata->angular_velocity.y = gyr.y;
+    imudata->angular_velocity.z = gyr.z;
+    imudata->linear_acceleration.x = acc.x;
+    imudata->linear_acceleration.y = acc.y;
+    imudata->linear_acceleration.z = acc.z;
+    uint32_t  sec = frame->timestamp();
+    uint32_t  nsec = (frame->timestamp()-sec)*1e9;
+    nsec = (nsec/1000)*1000+500;
+    imudata->header.stamp = ros::Time(sec,nsec);
+
+    imu_callback(imudata);
+    return true;
+}
+
+USE_GSLAM_PLUGIN(VINSMono);
 #endif

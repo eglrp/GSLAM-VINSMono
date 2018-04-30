@@ -1,4 +1,6 @@
 #include "feature_manager.h"
+#include <iostream>
+using namespace std;
 
 int FeaturePerId::endFrame()
 {

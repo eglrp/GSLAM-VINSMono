@@ -49,6 +49,7 @@ void SelfCalibrationEstimator::setIMUModel()
 
 void SelfCalibrationEstimator::clearState()
 {
+
     ROS_ERROR("clear state");
     for (int i = 0; i < 10 * (WINDOW_SIZE + 1); i++)
     {

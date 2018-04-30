@@ -1,19 +1,19 @@
 #pragma once
 
-#include <ros/ros.h>
+#include "ros/ros.h"
 #include <vector>
 #include <eigen3/Eigen/Dense>
 #include "utility.h"
 
 #define GPU 0
 
-const int ROW = 480;
-const int COL = 752;
-const double FOCAL_LENGTH = 460.0;
 const int NUM_OF_CAM = 1;
 const int NUM_OF_F = 1000;
 const int WINDOW_SIZE = 10;
 
+extern int ROW;
+extern int COL ;
+extern double FOCAL_LENGTH;
 extern std::string CALIB_DIR;
 extern std::vector<std::string> CAM_NAMES;
 extern int MAX_CNT;
@@ -62,7 +62,6 @@ extern double BIAS_GYR_THRESHOLD;
 extern double SOLVER_TIME;
 extern bool COMPENSATE_ROTATION;
 
-void readParameters(ros::NodeHandle &n);
 void readParameters();
 
 enum SIZE_PARAMETERIZATION
@@ -88,3 +87,6 @@ enum NoiseOrder
     O_AW = 6,
     O_GW = 9
 };
+#ifdef HAS_ROS
+void readParameters(ros::NodeHandle &n);
+#endif
